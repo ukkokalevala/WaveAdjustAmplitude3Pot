@@ -1,0 +1,93 @@
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+#include <Wire.h>
+
+// OLED display configuration
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+#define OLED_RESET -1
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+
+// Pins
+#define SOUND_SENSOR_PIN 1       // Analog pin for the sound sensor
+#define AMPLITUDE_POT_PIN 2      // Potentiometer for amplitude adjustment
+#define LENGTH_POT_PIN 3         // Potentiometer for wave length adjustment
+#define SENSITIVITY_POT_PIN 4    // (Optional) Potentiometer for sensitivity adjustment
+
+// Variables
+int wave[SCREEN_WIDTH];          // Array to store the wave points
+int sensitivityThreshold = 100; // Default threshold (fixed value)
+float sensitivityFactor = 1.0;  // Default scale factor for sensor readings
+float amplitudeFactor = SCREEN_HEIGHT / 4; // Initial amplitude factor
+float frequencyFactor = 1.0;               // Initial frequency factor
+int phase = 0;                 // Phase for wave animation
+
+void setup() {
+  // Initialize OLED
+  Wire.begin(7, 6);
+  if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
+    Serial.println("SSD1306 allocation failed");
+    for (;;);
+  }
+  display.clearDisplay();
+
+  // Initialize Serial for debugging (optional)
+  Serial.begin(115200);
+
+  // Set up analog pins
+  pinMode(SOUND_SENSOR_PIN, INPUT);
+  pinMode(AMPLITUDE_POT_PIN, INPUT);
+  pinMode(LENGTH_POT_PIN, INPUT);
+  pinMode(SENSITIVITY_POT_PIN, INPUT);
+}
+
+void loop() {
+  // Read potentiometer values
+  int amplitudeAdjust = analogRead(AMPLITUDE_POT_PIN); // Range: 0–4095
+  int lengthAdjust = analogRead(LENGTH_POT_PIN);       // Range: 0–4095
+
+  // Optional sensitivity adjustment
+  #ifdef SENSITIVITY_POT_PIN
+    int sensitivityAdjust = analogRead(SENSITIVITY_POT_PIN); // Read sensitivity pot
+    sensitivityThreshold = map(sensitivityAdjust, 0, 4095, 0, 1023); // Adjust threshold
+    sensitivityFactor = map(sensitivityAdjust, 0, 4095, 50, 200) / 100.0; // Adjust scale
+  #endif
+
+  // Map potentiometer values to useful ranges
+  amplitudeFactor = map(amplitudeAdjust, 0, 4095, 1, SCREEN_HEIGHT / 2);
+  frequencyFactor = map(lengthAdjust, 0, 4095, 100, 1000) / 100.0;
+
+  // Read sound sensor value and apply sensitivity adjustments
+  int sensorValue = analogRead(SOUND_SENSOR_PIN); // Raw sensor value
+  if (sensorValue < sensitivityThreshold) {
+    sensorValue = 0; // Ignore values below the threshold
+  }
+  sensorValue = sensorValue * sensitivityFactor; // Scale the value
+
+  // Generate waveform
+  for (int x = 0; x < SCREEN_WIDTH; x++) {
+    wave[x] = (SCREEN_HEIGHT / 2) +
+              (amplitudeFactor * sin(2 * PI * frequencyFactor * (x + phase) / SCREEN_WIDTH)) *
+              (sensorValue / 1023.0); // Scale wave amplitude with sensor value
+  }
+
+  // Increment phase for continuous movement
+  phase = (phase + 1) % SCREEN_WIDTH;
+
+  // Draw waveform
+  display.clearDisplay();
+  for (int x = 1; x < SCREEN_WIDTH; x++) {
+    display.drawLine(x - 1, wave[x - 1], x, wave[x], SSD1306_WHITE);
+  }
+  display.display();
+
+  // Optional debugging
+  Serial.print("Sensor Value: ");
+  Serial.print(sensorValue);
+  Serial.print(", Amplitude Factor: ");
+  Serial.print(amplitudeFactor);
+  Serial.print(", Frequency Factor: ");
+  Serial.println(frequencyFactor);
+
+  delay(20); // Adjust for smooth animation
+}
