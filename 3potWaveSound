@@ -68,7 +68,7 @@ void loop() {
   for (int x = 0; x < SCREEN_WIDTH; x++) {
     wave[x] = (SCREEN_HEIGHT / 2) +
               (amplitudeFactor * sin(2 * PI * frequencyFactor * (x + phase) / SCREEN_WIDTH)) *
-              (sensorValue / 1023.0); // Scale wave amplitude with sensor value
+              (sensorValue / 4095); // Scale wave amplitude with sensor value
   }
 
   // Increment phase for continuous movement
